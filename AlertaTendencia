@@ -1,195 +1,184 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Monitor Cripto Avançado</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 10px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .status {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: bold;
+    }
+    .ativo { background: green; color: white; }
+    .inativo { background: #555; color: white; }
+    .trend-bar {
+      height: 10px;
+      border-radius: 5px;
+      margin-top: 5px;
+    }
+    .up { background: green; }
+    .down { background: red; }
+    select, button {
+      margin: 4px 0;
+      padding: 4px;
+      border-radius: 5px;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      padding: 10px;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+  </style>
 </head>
-<body class="bg-black text-white p-4 space-y-4">
-  <div class="flex flex-col gap-2">
-    <!-- Cabeçalho com seleção de par e botões de configuração -->
-    <div class="flex gap-2">
-      <select id="par-moeda" class="bg-gray-800 p-2 rounded">
-        <option value="BTCUSDT">BTC/USDT</option>
-        <option value="ETHUSDT">ETH/USDT</option>
-        <option value="BNBUSDT">BNB/USDT</option>
-        <option value="SOLUSDT">SOL/USDT</option>
-        <option value="XRPUSDT">XRP/USDT</option>
-      </select>
-      <button onclick="abrirConfiguracaoTelegram()" class="bg-blue-600 px-3 rounded">Telegram</button>
-      <button onclick="abrirConfiguracaoHorario()" class="bg-purple-600 px-3 rounded">Horário</button>
-    </div>
-
-    <!-- Container para os cards das análises por intervalo de tempo -->
-    <div id="cards" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
-
-    <!-- Popup de configuração do Telegram -->
-    <div id="popup-config" class="fixed inset-0 bg-black bg-opacity-90 hidden items-center justify-center">
-      <div class="bg-gray-800 p-4 rounded-xl w-80 space-y-2">
-        <h2 class="text-lg font-bold">Configurar Telegram</h2>
-        <input id="input-token" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Token do Bot">
-        <input id="input-id" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Chat ID">
-        <div class="flex justify-end gap-2 pt-2">
-          <button onclick="salvarConfiguracaoTelegram()" class="bg-green-600 px-3 py-1 rounded">Salvar</button>
-          <button onclick="fecharPopup()" class="bg-red-600 px-3 py-1 rounded">Fechar</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Popup de configuração do horário de funcionamento -->
-    <div id="popup-horario" class="fixed inset-0 bg-black bg-opacity-90 hidden items-center justify-center">
-      <div class="bg-gray-800 p-4 rounded-xl w-80 space-y-2">
-        <h2 class="text-lg font-bold">Horário de Funcionamento</h2>
-        <input id="inicio-horario" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Início (ex: 05:00)">
-        <input id="fim-horario" class="w-full p-2 rounded bg-gray-700 text-white" placeholder="Fim (ex: 23:00)">
-        <div class="flex justify-end gap-2 pt-2">
-          <button onclick="salvarHorario()" class="bg-green-600 px-3 py-1 rounded">Salvar</button>
-          <button onclick="fecharPopupHorario()" class="bg-red-600 px-3 py-1 rounded">Fechar</button>
-        </div>
-      </div>
-    </div>
+<body>
+  <div class="header">
+    <h2>Monitor BTCUSDT</h2>
+    <button id="toggleTelegram" class="status inativo">Telegram Desativado</button>
   </div>
+  <label for="intervalo">Intervalo:</label>
+  <select id="intervalo">
+    <option value="1m">1m</option>
+    <option value="5m">5m</option>
+    <option value="15m">15m</option>
+    <option value="1h">1h</option>
+    <option value="4h">4h</option>
+    <option value="1d">1d</option>
+  </select>
 
+  <div class="card" id="info"></div>
   <script>
-    // Busca os dados de 24h do par selecionado usando API da Binance
-    async function fetchDadosTicker(symbol) {
-      const url = `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`;
-      const res = await fetch(url);
-      return res.json();
-    }
+    const TELEGRAM_TOKEN = '7810341382:AAESyLMRgfrpEy2VDbQcjTy54c7dgeu2F38';
+    const TELEGRAM_CHAT_ID = '5356968591';
+    let telegramAtivo = false;
 
-    // Gera dados simulados para análise (deve ser substituído por cálculo real dos indicadores)
-    async function analisarPar(symbol) {
-      const ticker = await fetchDadosTicker(symbol);
-      const precoAtual = parseFloat(ticker.lastPrice);
-      const volume = parseFloat(ticker.quoteVolume);
+    const info = document.getElementById('info');
+    const intervaloSelect = document.getElementById('intervalo');
+    const toggleBtn = document.getElementById('toggleTelegram');
 
-      // Indicadores simulados (substituir com cálculo real de RSI, MACD, EMA etc)
-      const rsi = Math.random() * 100;
-      const macd = Math.random() * 100;
-      const ema = precoAtual * (0.995 + Math.random() * 0.01);
-      const candle = Math.random() > 0.5 ? "Alta" : "Baixa";
+    toggleBtn.onclick = () => {
+      telegramAtivo = !telegramAtivo;
+      toggleBtn.textContent = telegramAtivo ? 'Telegram Ativado' : 'Telegram Desativado';
+      toggleBtn.className = telegramAtivo ? 'status ativo' : 'status inativo';
+    };
 
-      const score = calcularScore(rsi, macd, precoAtual, ema, candle);
-      const tendencia = definirTendencia(score);
+    async function fetchData() {
+      const interval = intervaloSelect.value;
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${interval}&limit=100`);
+      const data = await res.json();
 
-      return { precoAtual, volume, rsi, macd, ema, candle, score, tendencia };
-    }
+      const close = data.map(c => parseFloat(c[4]));
+      const high = data.map(c => parseFloat(c[2]));
+      const low = data.map(c => parseFloat(c[3]));
+      const volume = data.map(c => parseFloat(c[5]));
+      const open = data.map(c => parseFloat(c[1]));
 
-    // Calcula o score com base nos indicadores simulados
-    function calcularScore(rsi, macd, preco, ema, candle) {
-      let score = 0;
-      if (rsi > 50 && rsi < 70) score += 1;
-      if (macd > 50) score += 1;
-      if (preco > ema) score += 1;
-      if (candle === "Alta") score += 1;
-      return score;
-    }
+      const last = close[close.length - 1];
+      const topo = Math.max(...high);
+      const fundo = Math.min(...low);
 
-    // Define a tendência baseada no score final
-    function definirTendencia(score) {
-      if (score >= 3.5) return { texto: "Alta", cor: "text-green-400", seta: "↗" };
-      if (score <= 1.5) return { texto: "Baixa", cor: "text-red-400", seta: "↘" };
-      return { texto: "Neutra", cor: "text-yellow-400", seta: "→" };
-    }
+      const vwap = volume.reduce((acc, v, i) => acc + ((high[i]+low[i]+close[i])/3)*v, 0) / volume.reduce((a,b)=>a+b);
+      const macd = getMACD(close);
+      const obv = getOBV(close, volume);
+      const bb = getBB(close);
+      const score = calcScore(close, vwap, macd, obv);
 
-    // Atualiza os cards com os dados para cada intervalo de tempo
-    async function atualizarAnalise() {
-      const par = document.getElementById("par-moeda").value;
-      const cards = document.getElementById("cards");
-      cards.innerHTML = "";
+      let tendencia = score > 0 ? 'Alta' : 'Baixa';
+      let cor = score > 0 ? 'green' : 'red';
+      let barra = `<div class='trend-bar ${score > 0 ? 'up' : 'down'}'></div>`;
 
-      const intervalos = ["15m", "1h", "4h"];
-      for (const tf of intervalos) {
-        const analise = await analisarPar(par);
-        const card = document.createElement("div");
-        card.className = "bg-gray-900 p-4 rounded-xl shadow space-y-2";
-        card.innerHTML = `
-          <h3 class="text-lg font-bold">${par} - ${tf}</h3>
-          <p>Preço: $${analise.precoAtual.toFixed(2)}</p>
-          <p>RSI: ${analise.rsi.toFixed(2)}</p>
-          <p>MACD: ${analise.macd.toFixed(2)}</p>
-          <p>EMA: $${analise.ema.toFixed(2)}</p>
-          <p>Candle: ${analise.candle}</p>
-          <p>Score: ${analise.score}/4</p>
-          <p class="${analise.tendencia.cor}">Tendência: ${analise.tendencia.seta} ${analise.tendencia.texto}</p>
-        `;
-        cards.appendChild(card);
+      let msg = `<strong>Preço atual:</strong> ${last.toFixed(2)}<br>
+                 <strong>Topo:</strong> ${topo.toFixed(2)}<br>
+                 <strong>Fundo:</strong> ${fundo.toFixed(2)}<br>
+                 <strong>VWAP:</strong> ${vwap.toFixed(2)}<br>
+                 <strong>MACD:</strong> ${macd.macd.toFixed(2)} / Signal: ${macd.signal.toFixed(2)}<br>
+                 <strong>OBV:</strong> ${obv.toFixed(2)}<br>
+                 <strong>Bollinger Bands:</strong> ${bb.lower.toFixed(2)} - ${bb.upper.toFixed(2)}<br>
+                 <strong>Score Técnico:</strong> ${score.toFixed(2)} - Tendência: <span style='color:${cor}'>${tendencia}</span>
+                 ${barra}`;
 
-        // Envio de alerta via Telegram apenas para o timeframe de 15m com sinal forte
-        if (tf === "15m" && analise.score >= 3.5) enviarAlertaTelegram(`${par} LONG (${tf}) - Score: ${analise.score}/4`);
-        if (tf === "15m" && analise.score <= 1.5) enviarAlertaTelegram(`${par} SHORT (${tf}) - Score: ${analise.score}/4`);
+      info.innerHTML = msg;
+
+      if (telegramAtivo && (score >= 2 || score <= -2)) {
+        enviarTelegram(`Mudança de Tendência BTCUSDT: ${tendencia} | Preço: ${last.toFixed(2)}`);
       }
     }
 
-    // Exibe popup de configuração do Telegram e preenche com dados salvos
-    function abrirConfiguracaoTelegram() {
-      document.getElementById("popup-config").classList.remove("hidden");
-      document.getElementById("input-token").value = localStorage.getItem("telegram_token") || "";
-      document.getElementById("input-id").value = localStorage.getItem("telegram_id") || "";
+    function getEMA(data, length) {
+      let k = 2 / (length + 1);
+      let ema = data[0];
+      for (let i = 1; i < data.length; i++) {
+        ema = data[i] * k + ema * (1 - k);
+      }
+      return ema;
     }
 
-    // Salva dados do Telegram no localStorage
-    function salvarConfiguracaoTelegram() {
-      localStorage.setItem("telegram_token", document.getElementById("input-token").value);
-      localStorage.setItem("telegram_id", document.getElementById("input-id").value);
-      fecharPopup();
+    function getMACD(data) {
+      const ema12 = getEMA(data.slice(-26), 12);
+      const ema26 = getEMA(data.slice(-26), 26);
+      const macd = ema12 - ema26;
+      const signal = getEMA([macd], 9);
+      return { macd, signal };
     }
 
-    // Envia alerta via Telegram usando dados salvos no localStorage
-    function enviarAlertaTelegram(texto) {
-      const token = localStorage.getItem("telegram_token");
-      const chatId = localStorage.getItem("telegram_id");
-      if (!token || !chatId) return;
+    function getOBV(close, volume) {
+      let obv = 0;
+      for (let i = 1; i < close.length; i++) {
+        if (close[i] > close[i - 1]) obv += volume[i];
+        else if (close[i] < close[i - 1]) obv -= volume[i];
+      }
+      return obv;
+    }
 
-      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text: texto })
+    function getBB(data, length = 20) {
+      const slice = data.slice(-length);
+      const avg = slice.reduce((a,b)=>a+b)/length;
+      const std = Math.sqrt(slice.reduce((a,b)=>a + (b - avg) ** 2, 0)/length);
+      return {
+        upper: avg + 2 * std,
+        lower: avg - 2 * std
+      };
+    }
+
+    function calcScore(close, vwap, macd, obv) {
+      let score = 0;
+      if (close[close.length - 1] > vwap) score++;
+      if (macd.macd > macd.signal) score++;
+      if (obv > 0) score++;
+      if (close[close.length - 1] > getEMA(close, 9)) score++;
+      if (close[close.length - 1] < getBB(close).upper && close[close.length - 1] > getBB(close).lower) score++;
+      return score;
+    }
+
+    function enviarTelegram(mensagem) {
+      fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHAT_ID,
+          text: mensagem
+        })
       });
     }
 
-    // Fecha popup de configuração do Telegram
-    function fecharPopup() {
-      document.getElementById("popup-config").classList.add("hidden");
-    }
-
-    // Exibe popup para configurar horário de funcionamento
-    function abrirConfiguracaoHorario() {
-      document.getElementById("popup-horario").classList.remove("hidden");
-      document.getElementById("inicio-horario").value = localStorage.getItem("hora_inicio") || "05:00";
-      document.getElementById("fim-horario").value = localStorage.getItem("hora_fim") || "23:00";
-    }
-
-    // Salva horário de funcionamento no localStorage
-    function salvarHorario() {
-      localStorage.setItem("hora_inicio", document.getElementById("inicio-horario").value);
-      localStorage.setItem("hora_fim", document.getElementById("fim-horario").value);
-      fecharPopupHorario();
-    }
-
-    // Fecha popup de horário
-    function fecharPopupHorario() {
-      document.getElementById("popup-horario").classList.add("hidden");
-    }
-
-    // Verifica se o horário atual está dentro do período configurado
-    function dentroDoHorario() {
-      const agora = new Date();
-      const horaAtual = agora.getHours() + agora.getMinutes() / 60;
-      const [hi, mi] = (localStorage.getItem("hora_inicio") || "05:00").split(":");
-      const [hf, mf] = (localStorage.getItem("hora_fim") || "23:00").split(":");
-      const inicio = parseInt(hi) + parseInt(mi) / 60;
-      const fim = parseInt(hf) + parseInt(mf) / 60;
-      return horaAtual >= inicio && horaAtual <= fim;
-    }
-
-    // Atualiza as análises ao carregar e a cada minuto se dentro do horário
-    if (dentroDoHorario()) atualizarAnalise();
-    setInterval(() => {
-      if (dentroDoHorario()) atualizarAnalise();
-    }, 15000);
+    setInterval(fetchData, 15000);
+    intervaloSelect.addEventListener('change', fetchData);
+    fetchData();
   </script>
 </body>
 </html>
